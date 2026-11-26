@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Blast Chat - MVP</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; padding: 16px; background: #f4f6f9; color: #1f2937; }
+    .container { max-width: 720px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    h1 { font-size: 1.35rem; margin: 0 0 6px; }
+    p.sub { margin: 0 0 14px; color: #6b7280; font-size: 0.9rem; }
+    label { display: block; font-weight: 600; margin: 10px 0 6px; font-size: 0.9rem; }
+    textarea, input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; }
+    textarea { min-height: 95px; resize: vertical; }
+    .hint { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button { padding: 10px 16px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.92rem; }
+    .btn-primary { background: #2563eb; color: #fff; flex: 1; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .status-badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+    .pending { background: #fef3c7; color: #92400e; }
+    .processing { background: #dbeafe; color: #1e40af; }
+    .sent { background: #dcfce7; color: #166534; }
+    .failed { background: #fee2e2; color: #991b1b; }
+    .log-item { border-bottom: 1px solid #e5e7eb; padding: 10px 0; font-size: 0.88rem; }
+    .log-item:last-child { border-bottom: none; }
+    .msg-preview { background: #f9fafb; padding: 8px; border-radius: 6px; margin-top: 6px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Web Blast Chat (MVP)</h1>
+      <p class="sub">Mode simulasi antrean berjeda untuk menguji alur pengiriman pesan.</p>
+
+      <form id="blastForm">
+        <label for="recipients">Daftar Penerima (1 baris = target,nama)</label>
+        <textarea id="recipients" placeholder="081234567890,Budi&#10;081298765432,Sari&#10;@username_contoh,Andi"></textarea>
+        <div class="hint">Contoh: <code>081234567890,Budi</code> (nama opsional).</div>
+
+        <label for="template">Isi Pesan / Template</label>
+        <textarea id="template" placeholder="Halo {nama}, ini info terbaru untuk Anda ya."></textarea>
+        <div class="hint">Gunakan <code>{nama}</code> untuk menyisipkan nama penerima otomatis.</div>
+
+        <label for="delaySeconds">Jeda Antar Pesan (detik)</label>
+        <input type="number" id="delaySeconds" value="3" min="1" max="120" />
+
+        <div class="row">
+          <button type="submit" class="btn-primary">Mulai Blast</button>
+          <button type="button" id="clearBtn" class="btn-danger">Hapus Log</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size: 1.05rem; margin: 0 0 10px;">Status & Log Pengiriman</h2>
+      <div id="logsContainer"><p class="sub">Belum ada data pengiriman.</p></div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('blastForm');
+    const clearBtn = document.getElementById('clearBtn');
+    const logsContainer = document.getElementById('logsContainer');
+
+    function parseRecipients(rawText) {
+      return rawText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [target, ...nameParts] = line.split(',');
+          return {
+            target: (target || '').trim(),
+            name: nameParts.join(',').trim()
+          };
+        });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const recipients = parseRecipients(document.getElementById('recipients').value);
+      const template = document.getElementById('template').value;
+      const delaySeconds = document.getElementById('delaySeconds').value;
+
+      const res = await fetch('/api/blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipients, template, delaySeconds })
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      fetchLogs();
+    });
+
+    clearBtn.addEventListener('click', async () => {
+      const res = await fetch('/api/clear', { method: 'POST' });
+      const data = await res.json();
+      alert(data.message);
+      fetchLogs();
+    });
+
+    async function fetchLogs() {
+      const res = await fetch('/api/logs');
+      const data = await res.json();
+
+      if (!data.jobs || data.jobs.length === 0) {
+        logsContainer.innerHTML = '<p class="sub">Belum ada data pengiriman.</p>';
+        return;
+      }
+
+      logsContainer.innerHTML = data.jobs.map((job) => `
+        <div class="log-item">
+          <div>
+            <span class="status-badge ${job.status}">${job.status}</span>
+            <strong>${job.target || '-'}</strong> (${job.name || 'Tanpa Nama'}) • <small>${job.updatedAt}</small>
+          </div>
+          <div class="msg-preview">${job.finalMessage}</div>
+          <div class="hint">${job.note}</div>
+        </div>
+      `).join('');
+    }
+
+    fetchLogs();
+    setInterval(fetchLogs, 1500);
+  </script>
+</body>
+</html>
