@@ -1,0 +1,12 @@
+{
+  "name": "web-blast-chat",
+  "version": "1.0.0",
+  "description": "MVP Web Blast Chat dengan antrean jeda dan simulasi pengiriman",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
